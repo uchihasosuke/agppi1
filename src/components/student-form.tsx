@@ -29,8 +29,18 @@ const studentFormSchema = z.object({
   id: z.string().min(1, { message: 'Student ID (Barcode No.) is required.' }),
   name: z.string().min(2, { message: 'Name must be at least 2 characters.' }),
   branch: z.string().min(1, { message: 'Branch is required.' }),
-  enrollNo: z.string().optional(), // Not required
+  enrollNo: z.string().optional(),
   yearOfStudy: z.enum(['FY', 'SY', 'TY']).optional(), // Not required
+}).refine((data) => {
+  // If branch is Staff, enrollNo is optional
+  if (data.branch === 'Staff') {
+    return true;
+  }
+  // For all other branches, enrollNo is required
+  return data.enrollNo && data.enrollNo.length > 0;
+}, {
+  message: 'Enroll No. is required for non-staff branches.',
+  path: ['enrollNo'], // This will show the error on the enrollNo field
 });
 
 export type StudentFormData = z.infer<typeof studentFormSchema>;
