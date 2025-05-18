@@ -30,18 +30,27 @@ const studentFormSchema = z.object({
   name: z.string().min(2, { message: 'Name must be at least 2 characters.' }),
   branch: z.string().min(1, { message: 'Branch is required.' }),
   enrollNo: z.string().min(1, { message: 'Enroll No. is required for non-staff branches.' }),
-  yearOfStudy: z.enum(['FY', 'SY', 'TY']).optional(), // Not required
+  yearOfStudy: z.enum(['FY', 'SY', 'TY']).optional(), // Will be validated in superRefine
 }).superRefine((data, ctx) => {
-  // If branch is Staff, enrollNo is optional
+  // If branch is Staff, both enrollNo and yearOfStudy are optional
   if (data.branch === 'Staff') {
     return true;
   }
-  // For all other branches, enrollNo is required
+  
+  // For all other branches, both enrollNo and yearOfStudy are required
   if (!data.enrollNo || data.enrollNo.trim() === '') {
     ctx.addIssue({
       code: z.ZodIssueCode.custom,
       message: 'Enroll No. is required for non-staff branches.',
       path: ['enrollNo']
+    });
+  }
+  
+  if (!data.yearOfStudy) {
+    ctx.addIssue({
+      code: z.ZodIssueCode.custom,
+      message: 'Year of Study is required for non-staff branches.',
+      path: ['yearOfStudy']
     });
   }
 });
@@ -85,7 +94,7 @@ const StudentForm: React.FC<StudentFormProps> = ({
        });
    }, [defaultValues, form]); // Add form to dependencies
 
-  // Watch the branch field to update enrollNo validation
+  // Watch the branch field to update validation
   const selectedBranch = form.watch('branch');
   const isStaff = selectedBranch === 'Staff';
 
@@ -184,11 +193,14 @@ const StudentForm: React.FC<StudentFormProps> = ({
                   name="yearOfStudy"
                   render={({ field }) => (
                     <FormItem>
-                      <FormLabel>Year of Study</FormLabel>
-                       <Select onValueChange={field.onChange} value={field.value} disabled={isLoading}> {/* Use value prop */}
+                      <FormLabel>
+                        Year of Study
+                        {!isStaff && <span className="text-destructive ml-1">*</span>}
+                      </FormLabel>
+                      <Select onValueChange={field.onChange} value={field.value} disabled={isLoading}>
                         <FormControl>
                           <SelectTrigger>
-                            <SelectValue placeholder="Select year (optional)" />
+                            <SelectValue placeholder={isStaff ? "Select year (optional)" : "Select year (required)"} />
                           </SelectTrigger>
                         </FormControl>
                         <SelectContent>
