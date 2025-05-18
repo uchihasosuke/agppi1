@@ -23,7 +23,7 @@ const AdminExtractBarcodeDataOutputSchema = z.object({
   studentId: z.string().describe('The student ID number, found in the box above the barcode on the back side of the ID card.'),
   studentName: z.string().optional().describe('The full name of the student as printed on the ID card, if clearly visible.'),
   branch: z.string().optional().describe('The academic branch or department of the student, if clearly visible.'),
-  enrollNo: z.string().optional().describe('The Enroll No. of the student, if clearly visible and distinct from the student ID.'),
+  enrollNo: z.string().optional().describe('The Enroll No. of the student, if clearly visible and distinct from the student ID. It may be 10 or more than 10 digits of numbers'),
 });
 export type AdminExtractBarcodeDataOutput = z.infer<typeof AdminExtractBarcodeDataOutputSchema>;
 
