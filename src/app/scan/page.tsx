@@ -341,6 +341,16 @@ export default function ScanPage() { // Changed component name
       }
 
       const extractedId = extractionResult.studentId.trim().toLowerCase();
+
+      // Check if branch is extracted and not Staff
+      if (extractionResult.branch && extractionResult.branch !== 'Staff') {
+        // For non-staff branches, enrollment number is required
+        if (!extractionResult.enrollNo || extractionResult.enrollNo.trim() === "") {
+          console.log(`${logPrefix} Non-staff branch detected but no enrollment number found.`);
+          throw new Error(`Enrollment number is required for ${extractionResult.branch} branch. Please enter it manually.`);
+        }
+      }
+
       // Processing status (including setIsProcessing) is now handled within sharedProcessLogic via timeout
       await sharedProcessLogic(extractedId, 'scan', imageDataUri, extractionResult);
       setLastProcessedImage(imageDataUri);
