@@ -471,13 +471,28 @@ async function exportAnalysisToPdf(logs: EntryLog[], dateRange: { from: Date | u
       const imgHeight = (imgProps.height * pdfWidth) / imgProps.width;
 
       // Check if image fits on the first page, add new page if necessary
-      if (finalY + imgHeight > doc.internal.pageSize.getHeight() - 40) { // 40 for bottom margin + table spacing
-          doc.addPage();
-          finalY = 20; // Reset Y for new page
+      const remainingHeightBeforeGraph = doc.internal.pageSize.getHeight() - finalY - 20; // 20 for bottom margin
+
+      if (imgHeight > remainingHeightBeforeGraph && remainingHeightBeforeGraph > 50) { // If not enough space for graph, and there's at least minimal space left
+           doc.addPage();
+           finalY = 20; // Reset Y for new page
+      } else if (imgHeight > doc.internal.pageSize.getHeight() - 40) { // If image is very tall and won't fit even on a new page reasonably
+           // Add a new page only if the image height is greater than a significant portion of the page
+           doc.addPage();
+           finalY = 20; // Reset Y for new page
       }
 
       doc.addImage(imgData, 'PNG', 14, finalY, pdfWidth, imgHeight);
-      finalY += imgHeight + 15; // Update Y position for the next element, add more spacing
+
+      // Add axis labels below/beside the graph image
+      doc.setFontSize(9);
+      doc.setTextColor(100);
+      // Y-axis label (rotated)
+      doc.text("No. of Visitors", 5, finalY + imgHeight / 2, { angle: 90, align: 'center' });
+      // X-axis label
+      doc.text("Date", 14 + pdfWidth / 2, finalY + imgHeight + 5, { align: 'center' });
+
+      finalY += imgHeight + 25; // Update Y position for the next element, add more spacing including label space
 
     } catch (error) {
         console.error("Error adding graph image to PDF:", error);
@@ -485,7 +500,7 @@ async function exportAnalysisToPdf(logs: EntryLog[], dateRange: { from: Date | u
         doc.setFontSize(10);
         doc.setTextColor(255, 0, 0);
         doc.text("Error loading graph image.", 14, finalY);
-        finalY += 10; // Add space even if image failed
+        finalY += 15; // Add space even if image failed, increase slightly
     }
   }
 
@@ -494,10 +509,15 @@ async function exportAnalysisToPdf(logs: EntryLog[], dateRange: { from: Date | u
        // Estimate table height (approx 7 units per row including padding)
        const tableHeight = tableRows.length * 7 + 15; // 15 for header and padding
 
-       // Check if table fits on the current page, add new page if necessary
-       if (finalY + tableHeight > doc.internal.pageSize.getHeight() - 20) { // 20 for bottom margin
-           doc.addPage();
-           finalY = 20; // Reset Y for new page
+       // Check if table fits on the current page after the graph, add new page if necessary
+       const remainingHeightAfterGraph = doc.internal.pageSize.getHeight() - finalY - 20; // 20 for bottom margin
+
+       if (tableHeight > remainingHeightAfterGraph && remainingHeightAfterGraph > 30) { // If not enough space for table and some space remains
+            doc.addPage();
+            finalY = 20; // Reset Y for new page
+       } else if (tableHeight > doc.internal.pageSize.getHeight() - 40) { // If table is very long
+            doc.addPage();
+            finalY = 20;
        }
 
        autoTable(doc, {

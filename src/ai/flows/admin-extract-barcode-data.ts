@@ -39,34 +39,37 @@ const adminExtractBarcodeDataPrompt = ai.definePrompt({
       photoDataUri: z
         .string()
         .describe(
-          "A photo of a student ID card, as a data URI that must include a MIME type and use Base64 encoding. Expected format: 'data:<mimetype>;base64,<encoded_data>'."
+          "A photo of a student ID card (back side), as a data URI that must include a MIME type and use Base64 encoding."
         ),
     }),
   },
   output: {
     schema: z.object({
-       studentId: z.string().describe('The student ID number, found in the box above the barcode on the back side of the ID card.'),
-       studentName: z.string().optional().describe('The full name of the student as printed on the ID card, if clearly visible.'),
-       branch: z.string().optional().describe('The academic branch or department of the student, if clearly visible.'),
-       enrollNo: z.string().optional().describe('The Enroll No. of the student, if clearly visible and distinct from the student ID.'),
+       studentId: z.string().describe('The Student ID number, found in the box above the barcode.'),
+       studentName: z.string().optional().describe('The student\'s full name (if visible from front side data).'),
+       branch: z.string().optional().describe('The academic branch/department (if clearly visible on back side).'),
+       enrollNo: z.string().optional().describe('The Enroll No. (if clearly visible on back side and distinct from Student ID).'),
     }),
   },
   prompt: `You are an expert data extraction specialist focused on student ID cards.
 
-Analyze the provided image of a student ID card. Your primary goal is to accurately extract the **Student ID number**. This number is always printed **inside the box above the barcode** on the **back side** of the card. It might be labeled as "ID No.", "Student ID", "Barcode No.", or just be a sequence of numbers. Do NOT extract numbers below the barcode or elsewhere on the card. Ignore any numbers that look like phone numbers (e.g., starting with +91, having 10 digits, or containing hyphens in a phone number format).
+Analyze the provided image of the **back side** of a student ID card. Your primary goal is to accurately extract the **Student ID number**. This number is always printed **inside the box directly above the barcode**. It might be labeled as "ID No.", "Student ID", "Barcode No.", or just be a sequence of numbers. Do NOT extract numbers below the barcode or elsewhere on the card. Ignore any numbers that look like phone numbers.
 
-Secondary goals are to extract the following information **only if clearly visible and legible**:
-- studentName: The student's full name (from the front side, if visible).
-- branch: The student's academic branch/department (from the front or back, if visible).
-- enrollNo: The student's Enroll No. (from the back, if visible and distinct from the student ID).
+Secondary goals are to extract the following information **only if clearly visible and legible on the back side**:
+- branch: The student's academic branch/department.
+- enrollNo: The student's Enroll No. (distinct from the Student ID).
+
+Note: Student Name is typically on the front side. If any front side data is incidentally visible and clear (unlikely from a back side scan), you may extract the studentName, but prioritize back side data.
 
 Image: {{media url=photoDataUri}}
 
 **Instructions:**
-1.  **Prioritize Student ID:** Find the numeric or alphanumeric code printed inside the box above the barcode on the back side of the card. Do NOT extract numbers from below the barcode or from other locations.
-2.  **Accuracy over Completeness:** For 'studentName', 'branch', and 'enrollNo', only extract the information if it is clearly printed and you are confident in its accuracy. If unsure or the field is not present, omit it or return null/undefined for that optional field. Do not guess or hallucinate information.
-3.  **Output Format:** Return the extracted information strictly in the JSON format defined by the output schema.
-4.  **Student ID Guarantee:** Always return a value for 'studentId'. If you absolutely cannot find any number in the box above the barcode, return an empty string "" for 'studentId'. Do not return null or omit the 'studentId' field.
+1.  **Prioritize Student ID:** Find the numeric or alphanumeric code printed inside the box above the barcode on the back side. Do NOT extract numbers from below the barcode.
+2.  **Extract Branch and Enroll No.:** Look for the branch and Enroll No. on the back side. Only extract if clearly visible and distinct from the Student ID.
+3.  **Handle Student Name:** Extract studentName only if clearly visible, likely from a partial view of the front.
+4.  **Accuracy over Completeness:** For 'studentName', 'branch', and 'enrollNo', only extract the information if you are confident in its accuracy. If unsure or the field is not present, omit it or return null/undefined.
+5.  **Output Format:** Return the extracted information strictly in the JSON format defined by the output schema.
+6.  **Student ID Guarantee:** Always return a value for 'studentId'. If you absolutely cannot find any number in the box above the barcode, return an empty string "". Do not return null or omit the 'studentId' field.
 `,
 });
 

@@ -1,12 +1,12 @@
 import type { Branch, YearOfStudy } from './types';
 
 export const BRANCHES: Branch[] = [
-  'Computer',
-  'Electronic',
-  'Civil',
-  'Mechanical', // Corrected typo
-  'Electrical', // Corrected typo
-  'Staff', // Added Staff as a branch
+  'Computer Engg.',
+  'Electronic Engg.',
+  'Civil Engg.',
+  'Mechanical Engg.',
+  'Electrical Engg.',
+  'Staff',
 ];
 
 export const YEARS_OF_STUDY: YearOfStudy[] = ['FY', 'SY', 'TY'];
