@@ -29,18 +29,21 @@ const studentFormSchema = z.object({
   id: z.string().min(1, { message: 'Student ID (Barcode No.) is required.' }),
   name: z.string().min(2, { message: 'Name must be at least 2 characters.' }),
   branch: z.string().min(1, { message: 'Branch is required.' }),
-  enrollNo: z.string().optional(),
+  enrollNo: z.string().min(1, { message: 'Enroll No. is required for non-staff branches.' }),
   yearOfStudy: z.enum(['FY', 'SY', 'TY']).optional(), // Not required
-}).refine((data) => {
+}).superRefine((data, ctx) => {
   // If branch is Staff, enrollNo is optional
   if (data.branch === 'Staff') {
     return true;
   }
   // For all other branches, enrollNo is required
-  return data.enrollNo && data.enrollNo.length > 0;
-}, {
-  message: 'Enroll No. is required for non-staff branches.',
-  path: ['enrollNo'], // This will show the error on the enrollNo field
+  if (!data.enrollNo || data.enrollNo.trim() === '') {
+    ctx.addIssue({
+      code: z.ZodIssueCode.custom,
+      message: 'Enroll No. is required for non-staff branches.',
+      path: ['enrollNo']
+    });
+  }
 });
 
 export type StudentFormData = z.infer<typeof studentFormSchema>;
@@ -82,6 +85,9 @@ const StudentForm: React.FC<StudentFormProps> = ({
        });
    }, [defaultValues, form]); // Add form to dependencies
 
+  // Watch the branch field to update enrollNo validation
+  const selectedBranch = form.watch('branch');
+  const isStaff = selectedBranch === 'Staff';
 
   const handleFormSubmit = (data: StudentFormData) => {
     onSubmit(data);
@@ -132,9 +138,16 @@ const StudentForm: React.FC<StudentFormProps> = ({
                   name="enrollNo"
                   render={({ field }) => (
                     <FormItem>
-                      <FormLabel>Enroll No.</FormLabel>
+                      <FormLabel>
+                        Enroll No.
+                        {!isStaff && <span className="text-destructive ml-1">*</span>}
+                      </FormLabel>
                       <FormControl>
-                        <Input placeholder="Enter enroll number (optional)" {...field} disabled={isLoading} />
+                        <Input 
+                          placeholder={isStaff ? "Enter enroll number (optional)" : "Enter enroll number (required)"} 
+                          {...field} 
+                          disabled={isLoading} 
+                        />
                       </FormControl>
                       <FormMessage />
                     </FormItem>
