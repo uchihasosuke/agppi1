@@ -1,4 +1,3 @@
-
 'use client';
 
 import React, { useState, useCallback, useRef, useEffect } from 'react';
@@ -310,7 +309,7 @@ export default function AdminAddStudentPage() {
                             toast({ title:"Scanner Issue", description: "Could not start or use scanner.", variant: "destructive"})
                         }}
                         onManualStop={handleManualStop} // Pass the manual stop handler (triggers processing)
-                        scanPrompt="Position ID card inside the frame"
+                        scanPrompt="Scan the BACK SIDE of the ID card. Focus on the Branch, Enroll No., and ID number."
                         disabled={isExtracting || isSubmitting}
                         setCapturedImageUri={setCapturedImageUri} // Pass the state setter correctly
                         showStopButton={true} // Explicitly show stop button in this context
@@ -322,18 +321,13 @@ export default function AdminAddStudentPage() {
                         </div>
                     )}
                      {/* Display captured image preview after scan stops (before processing finishes) */}
-                     {capturedImageUri && !isExtracting && activeTab === 'scan' && (
-                         <div className="mt-4 p-2 border rounded-md bg-muted w-full max-w-xs transition-opacity duration-300">
-                             <p className="text-sm font-medium text-center mb-2">Captured Image:</p>
-                             <Image
-                                 src={capturedImageUri}
-                                 alt="Captured ID Card"
-                                 width={150}
-                                 height={225} // Maintain vertical aspect ratio
-                                 className="rounded-md mx-auto object-contain shadow-md" // Added shadow
-                             />
+                     {capturedImageUri && !isExtracting && !extractedData && !extractionError && (
+                         <div className="flex flex-col items-center mt-4">
+                              <p className="text-sm font-medium text-muted-foreground mb-1">Captured Image:</p>
+                              <Image src={capturedImageUri} alt="Captured ID Card" width={200} height={150} className="rounded border object-contain" data-ai-hint="captured id card preview"/>
+                              <p className="text-xs text-muted-foreground mt-2">Image captured. Tap 'Manual Entry' to see form.</p>
                          </div>
-                     )}
+                      )}
                 </TabsContent>
 
                 {/* Upload Tab Content */}

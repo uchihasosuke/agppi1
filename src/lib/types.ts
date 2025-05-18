@@ -1,5 +1,3 @@
-
-
 export type Branch = 'Computer' | 'Electronic' | 'Civil' | 'Mechanical' | 'Electrical' | string; // Allow custom branches
 export type YearOfStudy = 'FY' | 'SY' | 'TY';
 
@@ -7,8 +5,8 @@ export interface Student {
   id: string; // Unique identifier, matches barcode number
   name: string;
   branch: Branch;
-  rollNo: string;
-  yearOfStudy: YearOfStudy;
+  enrollNo?: string; // Changed from rollNo and made optional
+  yearOfStudy?: YearOfStudy; // Made optional
   // Ensure idCardImageUri is part of the type, though it can be undefined
   idCardImageUri?: string; // Optional: Store the captured ID card image URI during registration
   createdAt: Date;
@@ -32,8 +30,7 @@ export interface ExtractedIdData {
   idNumber?: string;
   studentName?: string;
   branch?: string;
-  rollNo?: string;
-  yearOfStudy?: string; // Use string initially from AI, convert later
+  enrollNo?: string;
 }
 
 // Type for admin credentials (used for demo login)
