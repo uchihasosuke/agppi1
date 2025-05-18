@@ -5,6 +5,7 @@ import { useToast } from '@/hooks/use-toast';
 import type { Student, EntryLog, EntryType } from '@/lib/types';
 import { extractBarcodeData } from '@/ai/flows/extract-barcode-data';
 import { detectIdCard } from '@/ai/flows/detect-id-card-flow';
+import { adminExtractBarcodeData } from '@/ai/flows/admin-extract-barcode-data';
 import { Card, CardContent, CardHeader, CardTitle, CardDescription } from '@/components/ui/card';
 import { Alert, AlertDescription, AlertTitle } from '@/components/ui/alert';
 import { LogIn, LogOut, AlertCircle, UserCheck, ImageOff, Camera, Loader2, UserPlus, Send, X, RefreshCw, ScanLine, Eye, ScanSearch } from 'lucide-react';
@@ -154,116 +155,134 @@ export default function ScanPage() { // Changed component name
 
 
   // Shared logic to process a student ID (from scan or manual)
-  const sharedProcessLogic = useCallback(async (studentId: string, source: 'scan' | 'manual', scannedImageUri?: string) => {
-        const logPrefix = `[sharedProcessLogic-${source}]`;
-        console.log(`${logPrefix} Processing ID: ${studentId}`);
-        setIsProcessing(true); // Set processing flag immediately
-        setScanSessionError(null); // Clear any previous scan error
-        setLastScanResult(null); // Clear previous result
-        setCapturedImageUri(source === 'scan' ? scannedImageUri ?? null : null); // Show scanned image for result display
+  const sharedProcessLogic = useCallback(async (studentId: string, source: 'scan' | 'manual', scannedImageUri?: string, extractedData?: { studentName?: string; branch?: string; enrollNo?: string }) => {
+    const logPrefix = `[sharedProcessLogic-${source}]`;
+    console.log(`${logPrefix} Processing ID: ${studentId}`);
+    setIsProcessing(true); // Set processing flag immediately
+    setScanSessionError(null); // Clear any previous scan error
+    setLastScanResult(null); // Clear previous result
+    setCapturedImageUri(source === 'scan' ? scannedImageUri ?? null : null); // Show scanned image for result display
 
-        // Clear any existing result display timeout
-        if (processingTimeoutRef.current) {
-           clearTimeout(processingTimeoutRef.current);
-           processingTimeoutRef.current = null;
+    // Clear any existing result display timeout
+    if (processingTimeoutRef.current) {
+       clearTimeout(processingTimeoutRef.current);
+       processingTimeoutRef.current = null;
+    }
+
+    let student: Student | null = null;
+    let imageMatchResult: boolean | undefined = undefined;
+    const now = new Date();
+    let processSuccessful = false;
+    let resultState: LastScanResultType | null = null;
+
+    try {
+        student = getStudentById(studentId);
+        console.log(`${logPrefix} Student lookup:`, student ? student.name : 'Not Found');
+        if (!student) {
+            throw new Error(`Student with ID ${studentId.toUpperCase()} not found. Please register first.`);
         }
 
-        let student: Student | null = null;
-        let imageMatchResult: boolean | undefined = undefined;
-        const now = new Date();
-        let processSuccessful = false;
-        let resultState: LastScanResultType | null = null;
-
-        try {
-            student = getStudentById(studentId);
-            console.log(`${logPrefix} Student lookup:`, student ? student.name : 'Not Found');
-            if (!student) {
-                throw new Error(`Student with ID ${studentId.toUpperCase()} not found. Please register first.`);
-            }
-
-            // Image comparison for scan source
-            if (source === 'scan' && scannedImageUri && student.idCardImageUri) {
-                imageMatchResult = compareImagesRoughly(student.idCardImageUri, scannedImageUri);
-                console.log(`${logPrefix} Image comparison for ${student.name}: ${imageMatchResult}`);
-            } else if (source === 'scan' && !student.idCardImageUri) {
-                console.log(`${logPrefix} No registered ID card image found for ${student.name}.`);
-                imageMatchResult = undefined;
-            }
-
-            // Determine Entry/Exit and check rate limit
-            const lastLog = getLastLogForStudent(studentId);
-            let currentAction: EntryType = 'Entry';
-            if (lastLog) {
-                const timeDiffSeconds = (now.getTime() - lastLog.timestamp.getTime()) / 1000;
-                console.log(`${logPrefix} Last log for ${student.name}: Type ${lastLog.type}, Time diff: ${timeDiffSeconds.toFixed(1)}s`);
-
-                if (timeDiffSeconds < MIN_LIBRARY_INTERVAL_SECONDS) {
-                    throw new Error(`Please wait ${Math.ceil(MIN_LIBRARY_INTERVAL_SECONDS - timeDiffSeconds)}s before processing ${student.name} again.`);
-                }
-                currentAction = lastLog.type === 'Entry' ? 'Exit' : 'Entry';
-            } else {
-                console.log(`${logPrefix} No previous log found for ${student.name}. Defaulting to Entry.`);
-            }
-
-            // Create and Save Log
-            const newLog: EntryLog = {
-                id: `log_${now.getTime()}_${student.id}`,
-                studentId: student.id,
-                studentName: student.name,
-                branch: student.branch,
-                timestamp: now,
-                type: currentAction,
-                imageMatch: imageMatchResult, // Save comparison result with the log
-            };
-            console.log(`${logPrefix} Saving new log:`, newLog);
-            saveEntryLog(newLog);
-            processSuccessful = true;
-
-            // Display Success Result
-            resultState = { student, log: newLog, scannedImageUri: source === 'scan' ? scannedImageUri : undefined, imageMatch: imageMatchResult, source };
-            toast({
-                title: `${currentAction} Recorded`,
-                description: `${student.name} (${student.id.toUpperCase()}) recorded as ${currentAction.toLowerCase()} at ${format(now, 'Pp')}.`,
-                variant: 'default',
-            });
-            playSound(currentAction === 'Entry' ? 'entry' : 'exit');
-
-        } catch (error: any) {
-            console.error(`${logPrefix} Error processing:`, error);
-            const errorMessage = error.message || 'An unknown error occurred during processing.';
-            toast({ title: 'Processing Error', description: errorMessage, variant: 'destructive' });
-            playSound('error');
-
-            let errorStudentData: Partial<Student> = { id: studentId?.toUpperCase() || "Unknown ID", name: "Unknown Name" };
-            if (student) {
-                errorStudentData = student;
-            } else if (studentId) {
-                errorStudentData = { id: studentId.toUpperCase(), name: "Not Registered" };
-            }
-            resultState = { student: errorStudentData, log: { timestamp: now, message: errorMessage }, scannedImageUri: source === 'scan' ? scannedImageUri : undefined, imageMatch: imageMatchResult, source, error: errorMessage };
-            processSuccessful = false;
-
-        } finally {
-             console.log(`${logPrefix} Finalizing processing. Success: ${processSuccessful}`);
-             setLastScanResult(resultState); // Show the result card
-             setIsDetecting(false); // Ensure detection state is reset
-             setIsExtracting(false); // Ensure extraction state is reset
-             // isProcessing will be reset by the timeout below
-
-             // Set timeout to clear the result card and allow next scan/submit
-             processingTimeoutRef.current = setTimeout(() => {
-                setIsProcessing(false); // Allow next scan/submit ONLY after timeout
-                setLastScanResult(null); // Clear the result card
-                setCapturedImageUri(null); // Clear the preview image
-                console.log(`${logPrefix} Processing timeout finished, ready for next action.`);
-                processingTimeoutRef.current = null; // Clear the ref
-            }, processSuccessful ? 3000 : 5000); // Shorter delay for success, longer for error
-
-             if (source === 'manual') {
-                 setManualStudentId(''); // Clear manual input field
-             }
+        // Image comparison for scan source
+        if (source === 'scan' && scannedImageUri && student.idCardImageUri) {
+            imageMatchResult = compareImagesRoughly(student.idCardImageUri, scannedImageUri);
+            console.log(`${logPrefix} Image comparison for ${student.name}: ${imageMatchResult}`);
+        } else if (source === 'scan' && !student.idCardImageUri) {
+            console.log(`${logPrefix} No registered ID card image found for ${student.name}.`);
+            imageMatchResult = undefined;
         }
-  }, [toast]); // Removed dependencies that might cause unnecessary re-renders
+
+        // Determine Entry/Exit and check rate limit
+        const lastLog = getLastLogForStudent(studentId);
+        let currentAction: EntryType = 'Entry';
+        if (lastLog) {
+            const timeDiffSeconds = (now.getTime() - lastLog.timestamp.getTime()) / 1000;
+            console.log(`${logPrefix} Last log for ${student.name}: Type ${lastLog.type}, Time diff: ${timeDiffSeconds.toFixed(1)}s`);
+
+            if (timeDiffSeconds < MIN_LIBRARY_INTERVAL_SECONDS) {
+                throw new Error(`Please wait ${Math.ceil(MIN_LIBRARY_INTERVAL_SECONDS - timeDiffSeconds)}s before processing ${student.name} again.`);
+            }
+            currentAction = lastLog.type === 'Entry' ? 'Exit' : 'Entry';
+        } else {
+            console.log(`${logPrefix} No previous log found for ${student.name}. Defaulting to Entry.`);
+        }
+
+        // Create and Save Log
+        const newLog: EntryLog = {
+            id: `log_${now.getTime()}_${student.id}`,
+            studentId: student.id,
+            studentName: student.name,
+            branch: student.branch,
+            timestamp: now,
+            type: currentAction,
+            imageMatch: imageMatchResult, // Save comparison result with the log
+        };
+        console.log(`${logPrefix} Saving new log:`, newLog);
+        saveEntryLog(newLog);
+        processSuccessful = true;
+
+        // Display Success Result
+        resultState = { 
+            student: { 
+                ...student,
+                // Include extracted data if available
+                ...(extractedData?.studentName && { name: extractedData.studentName }),
+                ...(extractedData?.branch && { branch: extractedData.branch }),
+                ...(extractedData?.enrollNo && { enrollNo: extractedData.enrollNo })
+            }, 
+            log: newLog, 
+            scannedImageUri: source === 'scan' ? scannedImageUri : undefined, 
+            imageMatch: imageMatchResult, 
+            source 
+        };
+        toast({
+            title: `${currentAction} Recorded`,
+            description: `${student.name} (${student.id.toUpperCase()}) recorded as ${currentAction.toLowerCase()} at ${format(now, 'Pp')}.`,
+            variant: 'default',
+        });
+        playSound(currentAction === 'Entry' ? 'entry' : 'exit');
+
+    } catch (error: any) {
+        console.error(`${logPrefix} Error processing:`, error);
+        const errorMessage = error.message || 'An unknown error occurred during processing.';
+        toast({ title: 'Processing Error', description: errorMessage, variant: 'destructive' });
+        playSound('error');
+
+        let errorStudentData: Partial<Student> = { id: studentId?.toUpperCase() || "Unknown ID", name: "Unknown Name" };
+        if (student) {
+            errorStudentData = student;
+        } else if (studentId) {
+            errorStudentData = { id: studentId.toUpperCase(), name: "Not Registered" };
+        }
+        resultState = { 
+            student: errorStudentData, 
+            log: { timestamp: now, message: errorMessage }, 
+            scannedImageUri: source === 'scan' ? scannedImageUri : undefined, 
+            imageMatch: imageMatchResult, 
+            source, 
+            error: errorMessage 
+        };
+        processSuccessful = false;
+    }
+
+    console.log(`${logPrefix} Finalizing processing. Success: ${processSuccessful}`);
+    setLastScanResult(resultState); // Show the result card
+    setIsDetecting(false); // Ensure detection state is reset
+    setIsExtracting(false); // Ensure extraction state is reset
+    // isProcessing will be reset by the timeout below
+
+    // Set timeout to clear the result card and allow next scan/submit
+    processingTimeoutRef.current = setTimeout(() => {
+        setIsProcessing(false); // Allow next scan/submit ONLY after timeout
+        setLastScanResult(null); // Clear the result card
+        setCapturedImageUri(null); // Clear the preview image
+        console.log(`${logPrefix} Processing timeout finished, ready for next action.`);
+        processingTimeoutRef.current = null; // Clear the ref
+    }, processSuccessful ? 3000 : 5000); // Shorter delay for success, longer for error
+
+    if (source === 'manual') {
+        setManualStudentId(''); // Clear manual input field
+    }
+}, [toast]);
 
 
   // Handles image captured from scanner (triggered by autoScanMode)
@@ -287,7 +306,7 @@ export default function ScanPage() { // Changed component name
     setIsExtracting(false); // Reset extracting state
     setScanSessionError(null);
     setLastScanResult(null);
-    setCapturedImageUri(imageDataUri); // Show image being processed
+    setCapturedImageUri(imageDataUri);
 
     try {
       console.log(`${logPrefix} Calling detectIdCard...`);
@@ -309,22 +328,22 @@ export default function ScanPage() { // Changed component name
       }
 
       // ID Card Detected, proceed to extraction
-      console.log(`${logPrefix} ID card detected. Calling extractBarcodeData...`);
+      console.log(`${logPrefix} ID card detected. Calling adminExtractBarcodeData...`);
       playSound('processing'); // Play sound when extraction starts
       setIsExtracting(true);
-      const extractionResult = await extractBarcodeData({ barcodeImage: imageDataUri });
+      const extractionResult = await adminExtractBarcodeData({ photoDataUri: imageDataUri });
       console.log(`${logPrefix} Extraction result:`, extractionResult);
       setIsExtracting(false); // Extraction finished
 
-      if (!extractionResult || !extractionResult.idNumber || extractionResult.idNumber.trim() === "") {
+      if (!extractionResult || !extractionResult.studentId || extractionResult.studentId.trim() === "") {
         console.log(`${logPrefix} ID card detected, but no ID number extracted.`);
         throw new Error("Could not extract Student ID number from the detected card.");
       }
 
-      const extractedId = extractionResult.idNumber.trim().toLowerCase();
+      const extractedId = extractionResult.studentId.trim().toLowerCase();
       // Processing status (including setIsProcessing) is now handled within sharedProcessLogic via timeout
-      await sharedProcessLogic(extractedId, 'scan', imageDataUri);
-      setLastProcessedImage(imageDataUri); // Store the successfully processed image URI
+      await sharedProcessLogic(extractedId, 'scan', imageDataUri, extractionResult);
+      setLastProcessedImage(imageDataUri);
 
     } catch (error: any) { // Catch errors from detection, extraction, or shared logic call
       console.error(`${logPrefix} Error during image processing:`, error);
@@ -354,7 +373,7 @@ export default function ScanPage() { // Changed component name
       // No need to set isProcessing(false) here, timeout handles it
     }
      // Removed finally block as logic is handled within try/catch and timeout
-  }, [toast, isProcessing, sharedProcessLogic, detectIdCard, extractBarcodeData, lastProcessedImage, detectionCoolDown]);
+  }, [toast, isProcessing, sharedProcessLogic, detectIdCard, adminExtractBarcodeData, lastProcessedImage, detectionCoolDown]);
 
 
   // Scanner Error Handler
@@ -520,6 +539,9 @@ export default function ScanPage() { // Changed component name
                       <p><strong>ID:</strong> {lastScanResult.student?.id?.toUpperCase() || 'N/A'}</p>
                       {lastScanResult.student?.branch && !lastScanResult.error && (
                         <p><strong>Branch:</strong> {lastScanResult.student.branch}</p>
+                      )}
+                      {lastScanResult.student?.enrollNo && !lastScanResult.error && (
+                        <p><strong>Enroll No.:</strong> {lastScanResult.student.enrollNo}</p>
                       )}
                     </div>
                   </CardContent>
