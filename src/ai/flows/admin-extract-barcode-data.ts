@@ -53,11 +53,11 @@ const adminExtractBarcodeDataPrompt = ai.definePrompt({
   },
   prompt: `You are an expert data extraction specialist focused on student ID cards.
 
-Analyze the provided image of the **back side** of a student ID card. Your primary goal is to accurately extract the **Student ID number**. This number is always printed **inside the box directly above the barcode**. It might be labeled as "ID No.", "Student ID", "Barcode No.", or just be a sequence of numbers. Do NOT extract numbers below the barcode or elsewhere on the card. Ignore any numbers that look like phone numbers.
+Analyze the provided image of the **back side** of a student ID card. Your primary goal is to accurately extract the **Student ID number**. This number is always printed **inside the box directly above the barcode**. It might be labeled as "ID No.", "Student ID", "Barcode No.", or just be a sequence of numbers. Do NOT extract numbers from below the barcode or elsewhere on the card. Ignore any numbers that look like phone numbers.
 
 Secondary goals are to extract the following information **only if clearly visible and legible on the back side**:
 1. branch: The student's academic branch/department. This is crucial as it determines if enrollment number is required.
-2. enrollNo: The student's Enroll No. (distinct from the Student ID). This is typically located **ABOVE the Student ID number** in a separate field. Look for fields labeled "Enroll No.", "Enrollment No.", or similar.
+2. enrollNo: The student's Enroll No. (distinct from the Student ID). This is typically located **ABOVE the I.D. No.** in a separate field. The enrollment number is usually a long number (10 or more digits) and is clearly labeled as "Enroll No.", "Enrollment No.", or similar. Pay special attention to this field as it's required for non-staff branches.
 
 Note: Student Name is typically on the front side. If any front side data is incidentally visible and clear (unlikely from a back side scan), you may extract the studentName, but prioritize back side data.
 
@@ -66,7 +66,7 @@ Image: {{media url=photoDataUri}}
 **Instructions:**
 1. **Prioritize Student ID:** Find the numeric or alphanumeric code printed inside the box above the barcode on the back side. Do NOT extract numbers from below the barcode.
 2. **Extract Branch First:** Look for the branch/department information. This is important as it determines if enrollment number is required.
-3. **Extract Enroll No. for Non-Staff:** If the branch is NOT "Staff", look for the enrollment number in the field ABOVE the Student ID number. This is a separate field that should be clearly labeled.
+3. **Extract Enroll No. for Non-Staff:** If the branch is NOT "Staff", look for the enrollment number in the field ABOVE the Student ID number. This is a separate field that should be clearly labeled. The enrollment number is typically a long number (10 or more digits). Make sure to extract the complete number.
 4. **Handle Student Name:** Extract studentName only if clearly visible, likely from a partial view of the front.
 5. **Accuracy over Completeness:** For 'studentName', 'branch', and 'enrollNo', only extract the information if you are confident in its accuracy. If unsure or the field is not present, omit it or return null/undefined.
 6. **Output Format:** Return the extracted information strictly in the JSON format defined by the output schema.
