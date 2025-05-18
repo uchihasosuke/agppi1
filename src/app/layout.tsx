@@ -8,6 +8,7 @@ import Link from 'next/link';
 import { Button } from '@/components/ui/button';
 import { Home } from 'lucide-react'; // Import Home icon
 import { NetworkStatusIndicator } from '@/components/network-status-indicator'; // Import NetworkStatusIndicator
+import { SpeedInsights } from "@vercel/speed-insights/next";
 
 export const metadata: Metadata = {
   title: 'SmartLibTrack',
@@ -54,6 +55,7 @@ export default function RootLayout({
             {children}
           </main>
           <Toaster />
+          <SpeedInsights />
            <footer className="py-6 md:px-8 md:py-0 border-t">
                <div className="container flex flex-col items-center justify-center gap-4 md:h-20 md:flex-row">
                  <p className="text-center text-sm leading-loose text-muted-foreground">
