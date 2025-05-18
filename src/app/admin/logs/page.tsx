@@ -319,52 +319,41 @@ export default function AdminLogsPage() {
             </div>
           </div>
 
-          {/* Analysis Section: Entry Counts Bar Graph + Table + PDF Export */}
+          {/* Analysis Section: Bar Graph + Summary Table + PDF Export */}
           <div className="mb-8 border rounded-md bg-background shadow-inner p-4" id="analysis-section">
             <div className="flex flex-col md:flex-row md:items-center md:justify-between gap-4 mb-4">
-              <h2 className="text-lg font-semibold text-primary">Log Analysis (Entries Only)</h2>
-              <Button onClick={async () => {
-                const input = document.getElementById('analysis-section');
-                if (!input) return;
-                const canvas = await html2canvas(input);
-                const imgData = canvas.toDataURL('image/png');
-                const pdf = new jsPDF({ orientation: 'landscape' });
-                const imgProps = pdf.getImageProperties(imgData);
-                const pdfWidth = pdf.internal.pageSize.getWidth();
-                const pdfHeight = (imgProps.height * pdfWidth) / imgProps.width;
-                pdf.addImage(imgData, 'PNG', 0, 0, pdfWidth, pdfHeight);
-                pdf.save('log_analysis_entries_only.pdf');
-              }} variant="outline" size="sm" className="transition-subtle hover:scale-[1.03]">
+              <h2 className="text-lg font-semibold text-primary">Visitor Analysis (Unique Entries Only)</h2>
+              <Button onClick={() => exportAnalysisToPdf(filteredLogs, dateRange)} variant="outline" size="sm" className="transition-subtle hover:scale-[1.03]">
                 <FileText className="mr-2 h-4 w-4" /> PDF
               </Button>
             </div>
             {/* Bar Graph */}
-            <div className="w-full h-72 mb-6">
+            <div className="w-full h-72 mb-6" id="analysis-graph">
               <ResponsiveContainer width="100%" height="100%">
-                <BarChart data={getEntryCountsData(filteredLogs)} margin={{ top: 20, right: 30, left: 0, bottom: 5 }}>
+                <BarChart data={getUniqueEntryBarChartData(filteredLogs)} margin={{ top: 20, right: 30, left: 0, bottom: 5 }}>
                   <CartesianGrid strokeDasharray="3 3" />
                   <XAxis dataKey="date" />
                   <YAxis allowDecimals={false} />
                   <Tooltip />
                   <Legend />
-                  <Bar dataKey="entryCount" fill="#3b82f6" name="Entries" />
+                  <Bar dataKey="uniqueEntries" fill="#22c55e" name="Unique Visitors" />
                 </BarChart>
               </ResponsiveContainer>
             </div>
-            {/* Summary Table */}
+            {/* Summary Table (Restored) */}
             <div className="overflow-x-auto">
-              <table className="min-w-[300px] w-full border text-sm">
+              <table className="min-w-[400px] w-full border text-sm">
                 <thead className="bg-muted/50">
                   <tr>
                     <th className="px-3 py-2 border">Date</th>
-                    <th className="px-3 py-2 border">Entries</th>
+                    <th className="px-3 py-2 border">Unique Visitors</th>
                   </tr>
                 </thead>
                 <tbody>
-                  {getEntryCountsData(filteredLogs).map((row) => (
+                  {getUniqueEntryBarChartData(filteredLogs).map((row) => (
                     <tr key={row.date}>
                       <td className="px-3 py-2 border">{row.date}</td>
-                      <td className="px-3 py-2 border text-blue-700 dark:text-blue-400 font-semibold">{row.entryCount}</td>
+                      <td className="px-3 py-2 border text-green-700 dark:text-green-400 font-semibold">{row.uniqueEntries}</td>
                     </tr>
                   ))}
                 </tbody>
@@ -428,19 +417,107 @@ export default function AdminLogsPage() {
   );
 }
 
-// Helper function for Entry counts per date
-function getEntryCountsData(logs: EntryLog[]) {
-  // Group logs by date and count only 'Entry' logs
-  const counts: Record<string, number> = {};
+// Helper function for bar chart data (unique Entry per day)
+function getUniqueEntryBarChartData(logs: EntryLog[]) {
+  // Group logs by date and count unique Entry student IDs
+  const counts: Record<string, Set<string>> = {};
   logs.forEach((log) => {
-    if (log.type === 'Entry') {
-      const date = format(log.timestamp, 'yyyy-MM-dd');
-      if (!counts[date]) counts[date] = 0;
-      counts[date]++;
-    }
+    if (log.type !== 'Entry') return;
+    const date = format(log.timestamp, 'yyyy-MM-dd');
+    if (!counts[date]) counts[date] = new Set();
+    counts[date].add(log.studentId);
   });
   // Convert to array sorted by date ascending
   return Object.entries(counts)
     .sort(([a], [b]) => a.localeCompare(b))
-    .map(([date, entryCount]) => ({ date, entryCount }));
+    .map(([date, set]) => ({ date, uniqueEntries: set.size }));
+}
+
+// Data-driven PDF export for analysis section (with graph image and table)
+async function exportAnalysisToPdf(logs: EntryLog[], dateRange: { from: Date | undefined; to: Date | undefined }) {
+  const doc = new jsPDF({ orientation: 'landscape' });
+
+  const analysisData = getUniqueEntryBarChartData(logs);
+  const tableColumn = ["Date", "Unique Visitors"];
+  const tableRows: (string | number)[][] = analysisData.map(row => [row.date, row.uniqueEntries]);
+
+  doc.setFontSize(18);
+  doc.text("Visitor Analysis (Unique Entries Only)", 14, 22);
+  doc.setFontSize(11);
+  doc.setTextColor(100);
+  let dateRangeText = "";
+  if (dateRange.from && dateRange.to) {
+    dateRangeText = `For: ${format(dateRange.from, 'yyyy-MM-dd')} to ${format(dateRange.to, 'yyyy-MM-dd')}`;
+  } else if (dateRange.from) {
+    dateRangeText = `From: ${format(dateRange.from, 'yyyy-MM-dd')}`;
+  } else if (dateRange.to) {
+    dateRangeText = `Up to: ${format(dateRange.to, 'yyyy-MM-dd')}`;
+  } else {
+    dateRangeText = "All Dates";
+  }
+  doc.text(dateRangeText, 14, 29);
+  doc.text(`Generated on: ${format(new Date(), 'PPpp')}`, 14, 36);
+
+  let finalY = 45; // Starting Y position for the first element (Graph)
+
+  // Add graph image to PDF
+  const graphElem = document.getElementById('analysis-graph');
+  if (graphElem) {
+    try {
+      const canvas = await html2canvas(graphElem);
+      const imgData = canvas.toDataURL('image/png');
+      const pdfWidth = doc.internal.pageSize.getWidth() - 28; // Leave margins
+      const imgProps = doc.getImageProperties(imgData);
+      const imgHeight = (imgProps.height * pdfWidth) / imgProps.width;
+
+      // Check if image fits on the first page, add new page if necessary
+      if (finalY + imgHeight > doc.internal.pageSize.getHeight() - 20) { // 20 for bottom margin
+          doc.addPage();
+          finalY = 20; // Reset Y for new page
+      }
+
+      doc.addImage(imgData, 'PNG', 14, finalY, pdfWidth, imgHeight);
+      finalY += imgHeight + 10; // Update Y position for the next element, add some spacing
+
+    } catch (error) {
+        console.error("Error adding graph image to PDF:", error);
+        // Optionally add a message to the PDF indicating graph failed to load
+        doc.setFontSize(10);
+        doc.setTextColor(255, 0, 0);
+        doc.text("Error loading graph image.", 14, finalY);
+        finalY += 10; // Add space even if image failed
+    }
+  }
+
+  // Add summary table to PDF
+   if (tableRows.length > 0) {
+       // Check if table fits on the current page, add new page if necessary
+       if (finalY + (tableRows.length * 7) > doc.internal.pageSize.getHeight() - 20) { // Estimate row height + padding
+           doc.addPage();
+           finalY = 20; // Reset Y for new page
+       }
+
+       autoTable(doc, {
+         head: [tableColumn],
+         body: tableRows,
+         startY: finalY,
+         theme: 'grid',
+         headStyles: { fillColor: [22, 160, 133] },
+         styles: { fontSize: 10, cellPadding: 2 },
+         columnStyles: {
+           0: { cellWidth: 40 }, // Date
+           1: { cellWidth: 35 }, // Unique Visitors
+         }
+       });
+       // autoTable updates the cursor position, no need to manually update finalY here
+   } else {
+        // If no data, add a message to the PDF
+        if (finalY + 10 > doc.internal.pageSize.getHeight() - 20) { doc.addPage(); finalY = 20; }
+        doc.setFontSize(10);
+        doc.setTextColor(100);
+        doc.text("No unique entry data available for the selected date range.", 14, finalY);
+   }
+
+  const currentDate = format(new Date(), 'yyyyMMdd');
+  doc.save(`visitor_analysis_${currentDate}.pdf`);
 }

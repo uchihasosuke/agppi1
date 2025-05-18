@@ -29,8 +29,8 @@ const studentFormSchema = z.object({
   id: z.string().min(1, { message: 'Student ID (Barcode No.) is required.' }),
   name: z.string().min(2, { message: 'Name must be at least 2 characters.' }),
   branch: z.string().min(1, { message: 'Branch is required.' }),
-  rollNo: z.string().optional(),
-  yearOfStudy: z.enum(['FY', 'SY', 'TY']).optional(),
+  enrollNo: z.string().optional(), // Not required
+  yearOfStudy: z.enum(['FY', 'SY', 'TY']).optional(), // Not required
 });
 
 export type StudentFormData = z.infer<typeof studentFormSchema>;
@@ -54,7 +54,7 @@ const StudentForm: React.FC<StudentFormProps> = ({
       id: defaultValues?.id || '',
       name: defaultValues?.name || '',
       branch: defaultValues?.branch || '',
-      rollNo: defaultValues?.rollNo || '',
+      enrollNo: defaultValues?.enrollNo || '',
       yearOfStudy: defaultValues?.yearOfStudy, // Needs to be one of the enum values or undefined
     },
     // Reset form state when defaultValues change if needed (e.g., when editing a different student)
@@ -67,7 +67,7 @@ const StudentForm: React.FC<StudentFormProps> = ({
            id: defaultValues?.id || '',
            name: defaultValues?.name || '',
            branch: defaultValues?.branch || '',
-           rollNo: defaultValues?.rollNo || '',
+           enrollNo: defaultValues?.enrollNo || '',
            yearOfStudy: defaultValues?.yearOfStudy,
        });
    }, [defaultValues, form]); // Add form to dependencies
@@ -119,12 +119,12 @@ const StudentForm: React.FC<StudentFormProps> = ({
                 />
                  <FormField
                   control={form.control}
-                  name="rollNo"
+                  name="enrollNo"
                   render={({ field }) => (
                     <FormItem>
-                      <FormLabel>Roll No.</FormLabel>
+                      <FormLabel>Enroll No.</FormLabel>
                       <FormControl>
-                        <Input placeholder="Enter roll number" {...field} disabled={isLoading} />
+                        <Input placeholder="Enter enroll number (optional)" {...field} disabled={isLoading} />
                       </FormControl>
                       <FormMessage />
                     </FormItem>
@@ -165,7 +165,7 @@ const StudentForm: React.FC<StudentFormProps> = ({
                        <Select onValueChange={field.onChange} value={field.value} disabled={isLoading}> {/* Use value prop */}
                         <FormControl>
                           <SelectTrigger>
-                            <SelectValue placeholder="Select year" />
+                            <SelectValue placeholder="Select year (optional)" />
                           </SelectTrigger>
                         </FormControl>
                         <SelectContent>

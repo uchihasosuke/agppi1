@@ -1,4 +1,3 @@
-
 'use client';
 
 import React, { useState, useEffect, useCallback, useRef } from 'react';
@@ -86,13 +85,14 @@ const compareImagesRoughly = (imageUri1?: string, imageUri2?: string): boolean |
   return match;
 }
 
-interface LastScanResultType {
-    student: Partial<Student>;
-    log: Partial<EntryLog> & { type: EntryType | 'Error'; message?: string };
-    scannedImageUri?: string;
-    imageMatch?: boolean;
-    source: 'scan' | 'manual';
-}
+type LastScanResultType = {
+  student: Partial<Student>;
+  log: Partial<EntryLog> & { type?: EntryType; message?: string };
+  scannedImageUri?: string;
+  imageMatch?: boolean;
+  source: 'scan' | 'manual';
+  error?: string;
+};
 
 // --- Audio Playback ---
 let entryAudio: HTMLAudioElement | null = null;
@@ -160,7 +160,7 @@ export default function ScanPage() { // Changed component name
         setIsProcessing(true); // Set processing flag immediately
         setScanSessionError(null); // Clear any previous scan error
         setLastScanResult(null); // Clear previous result
-        setCapturedImageUri(source === 'scan' ? scannedImageUri : null); // Show scanned image for result display
+        setCapturedImageUri(source === 'scan' ? scannedImageUri ?? null : null); // Show scanned image for result display
 
         // Clear any existing result display timeout
         if (processingTimeoutRef.current) {
@@ -240,7 +240,7 @@ export default function ScanPage() { // Changed component name
             } else if (studentId) {
                 errorStudentData = { id: studentId.toUpperCase(), name: "Not Registered" };
             }
-            resultState = { student: errorStudentData, log: { type: 'Error', timestamp: now, message: errorMessage }, scannedImageUri: source === 'scan' ? scannedImageUri : undefined, imageMatch: imageMatchResult, source };
+            resultState = { student: errorStudentData, log: { timestamp: now, message: errorMessage }, scannedImageUri: source === 'scan' ? scannedImageUri : undefined, imageMatch: imageMatchResult, source, error: errorMessage };
             processSuccessful = false;
 
         } finally {
@@ -336,9 +336,10 @@ export default function ScanPage() { // Changed component name
 
       setLastScanResult({
           student: { id: "Unknown", name: "Processing Failed" },
-          log: { type: 'Error', timestamp: new Date(), message: errorMessage },
+          log: { timestamp: new Date(), message: errorMessage },
           scannedImageUri: imageDataUri,
-          source: 'scan'
+          source: 'scan',
+          error: errorMessage
       });
 
       // Use timeout to reset processing state after showing error
@@ -430,7 +431,7 @@ export default function ScanPage() { // Changed component name
               <ScanSearch className="inline-block mr-2 -mt-1 h-6 w-6" />
               Scan ID Card
             </CardTitle>
-            <CardDescription>Position ID card within the frame for automatic entry/exit.</CardDescription>
+            <CardDescription>Scan the BACK SIDE of the ID card. Focus on the box ABOVE the barcode to extract the ID number.</CardDescription>
           </CardHeader>
           <CardContent className="flex flex-col items-center gap-6 pt-4">
 
@@ -439,7 +440,7 @@ export default function ScanPage() { // Changed component name
                  <BarcodeScanner
                    onScanSuccess={processCapturedImage}
                    onScanError={handleScannerError}
-                   scanPrompt="Position ID card in frame..."
+                   scanPrompt="Scan the BACK SIDE of the ID card. Focus on the box ABOVE the barcode to extract the ID number."
                    autoScanMode={true}
                    isProcessing={isProcessing}
                    captureInterval={1500}
@@ -450,23 +451,23 @@ export default function ScanPage() { // Changed component name
              {/* Last Scan Result Display */}
             {(isProcessing || lastScanResult) && (
               <Card className={`w-full max-w-md card-enhanced border-l-4 ${
-                !isProcessing && lastScanResult?.log.type === 'Error' ? 'border-l-destructive' :
+                !isProcessing && lastScanResult?.error ? 'border-l-destructive' :
                 !isProcessing && lastScanResult?.log.type === 'Entry' ? 'border-l-green-500' :
                 !isProcessing && lastScanResult?.log.type === 'Exit' ? 'border-l-red-500' :
                 'border-l-blue-500'
-              } ${!isProcessing && lastScanResult?.imageMatch === false && lastScanResult?.log.type !== 'Error' ? '!border-l-yellow-500' : ''}`}>
+              } ${!isProcessing && lastScanResult?.imageMatch === false && !lastScanResult?.error ? '!border-l-yellow-500' : ''}`}>
                 <CardHeader className="pb-3">
                    <div className="flex justify-between items-start">
                       <CardTitle className="flex items-center gap-2 text-lg">
                         {isDetecting && <Loader2 className="h-5 w-5 animate-spin text-blue-600" />}
                         {isExtracting && <Loader2 className="h-5 w-5 animate-spin text-purple-600" />}
-                        {!isProcessing && lastScanResult?.log.type === 'Error' && <AlertCircle className="text-destructive" />}
+                        {!isProcessing && lastScanResult?.error && <AlertCircle className="text-destructive" />}
                         {!isProcessing && lastScanResult?.log.type === 'Entry' && <LogIn className="text-green-600" />}
                         {!isProcessing && lastScanResult?.log.type === 'Exit' && <LogOut className="text-red-600" />}
 
                         {isDetecting ? 'Detecting ID...' :
                          isExtracting ? 'Extracting ID...' :
-                         !isProcessing && lastScanResult?.log.type === 'Error' ? 'Processing Error' :
+                         !isProcessing && lastScanResult?.error ? 'Processing Error' :
                          !isProcessing && lastScanResult?.log.type === 'Entry' ? 'Entry Recorded' :
                          !isProcessing && lastScanResult?.log.type === 'Exit' ? 'Exit Recorded' :
                          'Processing...'}
@@ -481,7 +482,7 @@ export default function ScanPage() { // Changed component name
                   </div>
                   {!isProcessing && lastScanResult && (
                     <CardDescription className="pt-1">
-                     {lastScanResult.log.type === 'Error' && lastScanResult.log.message ? lastScanResult.log.message :
+                     {lastScanResult.error ? lastScanResult.error :
                         lastScanResult.log.timestamp ? `Recorded Time: ${format(lastScanResult.log.timestamp, 'Pp')}` : "Details unavailable"}
                     </CardDescription>
                   )}
@@ -497,19 +498,19 @@ export default function ScanPage() { // Changed component name
                           width={100}
                           height={150}
                           className={`rounded border-2 object-contain shadow-md ${
-                            lastScanResult.imageMatch === false && lastScanResult.log.type !== 'Error' ? 'border-yellow-500 shadow-yellow-500/20'
-                            : lastScanResult.imageMatch === true && lastScanResult.log.type !== 'Error' ? 'border-green-500 shadow-green-500/20'
+                            lastScanResult.imageMatch === false && !lastScanResult.error ? 'border-yellow-500 shadow-yellow-500/20'
+                            : lastScanResult.imageMatch === true && !lastScanResult.error ? 'border-green-500 shadow-green-500/20'
                             : 'border-muted'
                           }`}
                           data-ai-hint="scanned id card result"
                         />
-                        {lastScanResult.imageMatch === false && lastScanResult.log.type !== 'Error' && (
+                        {lastScanResult.imageMatch === false && !lastScanResult.error && (
                           <span className="text-xs text-yellow-600 dark:text-yellow-400 font-semibold mt-1 animate-pulse">Image Mismatch! Verify ID.</span>
                         )}
-                        {lastScanResult.imageMatch === true && lastScanResult.log.type !== 'Error' && (
+                        {lastScanResult.imageMatch === true && !lastScanResult.error && (
                           <span className="text-xs text-green-600 dark:text-green-400 font-semibold mt-1">Image Match Confirmed</span>
                         )}
-                        {lastScanResult.imageMatch === undefined && lastScanResult.log.type !== 'Error' && (
+                        {lastScanResult.imageMatch === undefined && !lastScanResult.error && (
                           <span className="text-xs text-muted-foreground mt-1">(No registered image or comparison inconclusive)</span>
                         )}
                       </div>
@@ -517,7 +518,7 @@ export default function ScanPage() { // Changed component name
                     <div className="space-y-1">
                       <p><strong>Student:</strong> {lastScanResult.student?.name || 'N/A'}</p>
                       <p><strong>ID:</strong> {lastScanResult.student?.id?.toUpperCase() || 'N/A'}</p>
-                      {lastScanResult.log.type !== 'Error' && lastScanResult.student?.branch && (
+                      {lastScanResult.student?.branch && !lastScanResult.error && (
                         <p><strong>Branch:</strong> {lastScanResult.student.branch}</p>
                       )}
                     </div>

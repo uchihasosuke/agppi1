@@ -20,11 +20,10 @@ const AdminExtractBarcodeDataInputSchema = z.object({
 export type AdminExtractBarcodeDataInput = z.infer<typeof AdminExtractBarcodeDataInputSchema>;
 
 const AdminExtractBarcodeDataOutputSchema = z.object({
-  studentId: z.string().optional().describe('The student ID number, if visible, but usually entered manually from the back side of the card.'),
-  studentName: z.string().optional().describe('The full name of the student as printed on the front side of the ID card, if clearly visible.'),
-  branch: z.string().optional().describe('The academic branch or department of the student as printed on the front side, if clearly visible.'),
-  rollNo: z.string().optional().describe('The roll number of the student, if visible and distinct from the student ID.'),
-  yearOfStudy: z.string().optional().describe('The academic year or class of the student (e.g., FY, SY, TY), if visible.'),
+  studentId: z.string().describe('The student ID number, found in the box above the barcode on the back side of the ID card.'),
+  studentName: z.string().optional().describe('The full name of the student as printed on the ID card, if clearly visible.'),
+  branch: z.string().optional().describe('The academic branch or department of the student, if clearly visible.'),
+  enrollNo: z.string().optional().describe('The Enroll No. of the student, if clearly visible and distinct from the student ID.'),
 });
 export type AdminExtractBarcodeDataOutput = z.infer<typeof AdminExtractBarcodeDataOutputSchema>;
 
@@ -34,39 +33,40 @@ export async function adminExtractBarcodeData(input: AdminExtractBarcodeDataInpu
 
 const adminExtractBarcodeDataPrompt = ai.definePrompt({
   name: 'adminExtractBarcodeDataPrompt',
-  // Explicitly set the model for this prompt
   model: 'googleai/gemini-2.0-flash',
   input: {
     schema: z.object({
       photoDataUri: z
         .string()
         .describe(
-          "A photo of the FRONT SIDE of a student ID card, as a data URI that must include a MIME type and use Base64 encoding. Expected format: 'data:<mimetype>;base64,<encoded_data>'."
+          "A photo of a student ID card, as a data URI that must include a MIME type and use Base64 encoding. Expected format: 'data:<mimetype>;base64,<encoded_data>'."
         ),
     }),
   },
   output: {
     schema: z.object({
-       studentId: z.string().optional().describe('The student ID number, if visible, but usually entered manually from the back side of the card.'),
-       studentName: z.string().optional().describe('The full name of the student as printed on the front side of the ID card, if clearly visible.'),
-       branch: z.string().optional().describe('The academic branch or department of the student as printed on the front side, if clearly visible.'),
-       rollNo: z.string().optional().describe('The roll number of the student, if visible and distinct from the student ID.'),
-       yearOfStudy: z.string().optional().describe('The academic year or class of the student (e.g., FY, SY, TY), if visible.'),
+       studentId: z.string().describe('The student ID number, found in the box above the barcode on the back side of the ID card.'),
+       studentName: z.string().optional().describe('The full name of the student as printed on the ID card, if clearly visible.'),
+       branch: z.string().optional().describe('The academic branch or department of the student, if clearly visible.'),
+       enrollNo: z.string().optional().describe('The Enroll No. of the student, if clearly visible and distinct from the student ID.'),
     }),
   },
   prompt: `You are an expert data extraction specialist focused on student ID cards.
 
-Analyze the provided image of the FRONT SIDE of a student ID card. Your primary goal is to accurately extract the **student's full name** and **branch/department** as printed on the front side of the card.
+Analyze the provided image of a student ID card. Your primary goal is to accurately extract the **Student ID number**. This number is always printed **inside the box above the barcode** on the **back side** of the card. It might be labeled as "ID No.", "Student ID", "Barcode No.", or just be a sequence of numbers. Do NOT extract numbers below the barcode or elsewhere on the card. Ignore any numbers that look like phone numbers (e.g., starting with +91, having 10 digits, or containing hyphens in a phone number format).
 
-- Do NOT attempt to extract the student ID number, roll number, or year of study unless they are clearly visible on the front side. These are usually entered manually from the back side of the card.
-- If a field is not visible or you are not confident, omit it or return null/undefined for that optional field. Do not guess or hallucinate information.
+Secondary goals are to extract the following information **only if clearly visible and legible**:
+- studentName: The student's full name (from the front side, if visible).
+- branch: The student's academic branch/department (from the front or back, if visible).
+- enrollNo: The student's Enroll No. (from the back, if visible and distinct from the student ID).
 
 Image: {{media url=photoDataUri}}
 
 **Instructions:**
-1.  **Prioritize Name and Branch:** Extract the student's full name and branch/department as printed on the FRONT SIDE of the card.
-2.  **Other Fields:** Only extract studentId, rollNo, or yearOfStudy if they are clearly visible on the front side. Otherwise, leave them blank for manual entry.
+1.  **Prioritize Student ID:** Find the numeric or alphanumeric code printed inside the box above the barcode on the back side of the card. Do NOT extract numbers from below the barcode or from other locations.
+2.  **Accuracy over Completeness:** For 'studentName', 'branch', and 'enrollNo', only extract the information if it is clearly printed and you are confident in its accuracy. If unsure or the field is not present, omit it or return null/undefined for that optional field. Do not guess or hallucinate information.
 3.  **Output Format:** Return the extracted information strictly in the JSON format defined by the output schema.
+4.  **Student ID Guarantee:** Always return a value for 'studentId'. If you absolutely cannot find any number in the box above the barcode, return an empty string "" for 'studentId'. Do not return null or omit the 'studentId' field.
 `,
 });
 
@@ -93,8 +93,7 @@ const adminExtractBarcodeDataFlow = ai.defineFlow<
             studentId: validatedOutput.studentId,
             studentName: validatedOutput.studentName || undefined,
             branch: validatedOutput.branch || undefined,
-            rollNo: validatedOutput.rollNo || undefined,
-            yearOfStudy: validatedOutput.yearOfStudy || undefined,
+            enrollNo: validatedOutput.enrollNo || undefined,
         };
 
         console.log("AdminExtract Flow Output:", finalOutput);
@@ -107,8 +106,7 @@ const adminExtractBarcodeDataFlow = ai.defineFlow<
            studentId: "", // Indicate failure by empty ID
            studentName: undefined,
            branch: undefined,
-           rollNo: undefined,
-           yearOfStudy: undefined,
+           enrollNo: undefined,
         };
     }
   }
