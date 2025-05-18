@@ -1,4 +1,3 @@
-
 'use client';
 
 import React from 'react';
@@ -30,8 +29,8 @@ const studentFormSchema = z.object({
   id: z.string().min(1, { message: 'Student ID (Barcode No.) is required.' }),
   name: z.string().min(2, { message: 'Name must be at least 2 characters.' }),
   branch: z.string().min(1, { message: 'Branch is required.' }),
-  rollNo: z.string().min(1, { message: 'Roll No. is required.' }),
-  yearOfStudy: z.enum(['FY', 'SY', 'TY'], { required_error: 'Year of Study is required.' }),
+  rollNo: z.string().optional(),
+  yearOfStudy: z.enum(['FY', 'SY', 'TY']).optional(),
 });
 
 export type StudentFormData = z.infer<typeof studentFormSchema>;

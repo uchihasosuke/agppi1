@@ -319,10 +319,10 @@ export default function AdminLogsPage() {
             </div>
           </div>
 
-          {/* Analysis Section: Bar Graph + Summary Table + PDF Export */}
+          {/* Analysis Section: Entry Counts Bar Graph + Table + PDF Export */}
           <div className="mb-8 border rounded-md bg-background shadow-inner p-4" id="analysis-section">
             <div className="flex flex-col md:flex-row md:items-center md:justify-between gap-4 mb-4">
-              <h2 className="text-lg font-semibold text-primary">Log Analysis (Bar Graph & Table)</h2>
+              <h2 className="text-lg font-semibold text-primary">Log Analysis (Entries Only)</h2>
               <Button onClick={async () => {
                 const input = document.getElementById('analysis-section');
                 if (!input) return;
@@ -333,7 +333,7 @@ export default function AdminLogsPage() {
                 const pdfWidth = pdf.internal.pageSize.getWidth();
                 const pdfHeight = (imgProps.height * pdfWidth) / imgProps.width;
                 pdf.addImage(imgData, 'PNG', 0, 0, pdfWidth, pdfHeight);
-                pdf.save('log_analysis.pdf');
+                pdf.save('log_analysis_entries_only.pdf');
               }} variant="outline" size="sm" className="transition-subtle hover:scale-[1.03]">
                 <FileText className="mr-2 h-4 w-4" /> PDF
               </Button>
@@ -341,33 +341,30 @@ export default function AdminLogsPage() {
             {/* Bar Graph */}
             <div className="w-full h-72 mb-6">
               <ResponsiveContainer width="100%" height="100%">
-                <BarChart data={getBarChartData(filteredLogs)} margin={{ top: 20, right: 30, left: 0, bottom: 5 }}>
+                <BarChart data={getEntryCountsData(filteredLogs)} margin={{ top: 20, right: 30, left: 0, bottom: 5 }}>
                   <CartesianGrid strokeDasharray="3 3" />
                   <XAxis dataKey="date" />
                   <YAxis allowDecimals={false} />
                   <Tooltip />
                   <Legend />
-                  <Bar dataKey="Entry" fill="#22c55e" name="Entry" />
-                  <Bar dataKey="Exit" fill="#ef4444" name="Exit" />
+                  <Bar dataKey="entryCount" fill="#3b82f6" name="Entries" />
                 </BarChart>
               </ResponsiveContainer>
             </div>
             {/* Summary Table */}
             <div className="overflow-x-auto">
-              <table className="min-w-[400px] w-full border text-sm">
+              <table className="min-w-[300px] w-full border text-sm">
                 <thead className="bg-muted/50">
                   <tr>
                     <th className="px-3 py-2 border">Date</th>
-                    <th className="px-3 py-2 border">Entry Count</th>
-                    <th className="px-3 py-2 border">Exit Count</th>
+                    <th className="px-3 py-2 border">Entries</th>
                   </tr>
                 </thead>
                 <tbody>
-                  {getBarChartData(filteredLogs).map((row) => (
+                  {getEntryCountsData(filteredLogs).map((row) => (
                     <tr key={row.date}>
                       <td className="px-3 py-2 border">{row.date}</td>
-                      <td className="px-3 py-2 border text-green-700 dark:text-green-400 font-semibold">{row.Entry}</td>
-                      <td className="px-3 py-2 border text-red-700 dark:text-red-400 font-semibold">{row.Exit}</td>
+                      <td className="px-3 py-2 border text-blue-700 dark:text-blue-400 font-semibold">{row.entryCount}</td>
                     </tr>
                   ))}
                 </tbody>
@@ -431,18 +428,19 @@ export default function AdminLogsPage() {
   );
 }
 
-// Helper function for bar chart data
-function getBarChartData(logs: EntryLog[]) {
-  // Group logs by date and count Entry/Exit
-  const counts: Record<string, { Entry: number; Exit: number }> = {};
+// Helper function for Entry counts per date
+function getEntryCountsData(logs: EntryLog[]) {
+  // Group logs by date and count only 'Entry' logs
+  const counts: Record<string, number> = {};
   logs.forEach((log) => {
-    const date = format(log.timestamp, 'yyyy-MM-dd');
-    if (!counts[date]) counts[date] = { Entry: 0, Exit: 0 };
-    if (log.type === 'Entry') counts[date].Entry++;
-    if (log.type === 'Exit') counts[date].Exit++;
+    if (log.type === 'Entry') {
+      const date = format(log.timestamp, 'yyyy-MM-dd');
+      if (!counts[date]) counts[date] = 0;
+      counts[date]++;
+    }
   });
   // Convert to array sorted by date ascending
   return Object.entries(counts)
     .sort(([a], [b]) => a.localeCompare(b))
-    .map(([date, { Entry, Exit }]) => ({ date, Entry, Exit }));
+    .map(([date, entryCount]) => ({ date, entryCount }));
 }

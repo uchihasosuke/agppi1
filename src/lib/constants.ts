@@ -6,6 +6,7 @@ export const BRANCHES: Branch[] = [
   'Civil',
   'Mechanical', // Corrected typo
   'Electrical', // Corrected typo
+  'Staff',
 ];
 
 export const YEARS_OF_STUDY: YearOfStudy[] = ['FY', 'SY', 'TY'];
